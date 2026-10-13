@@ -1,0 +1,581 @@
+<title>Xưởng mô phỏng</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;700;800&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one bench page; tabs switch between sims; each sim = drawing stage left + instrument column right, stacked on phones */
+:root{
+  --bg:#edf1f0; --panel:#fbfcfc; --stage:#f6f8f7; --grid:#dfe6e3;
+  --ink:#15201c; --muted:#58665f; --line:#ccd6d2;
+  --copper:#b0532a; --electron:#1f5fc2; --current:#c2382e; --glow:#f2b01e; --steel:#33434d; --ok:#1d8355;
+  --f-display:"Be Vietnam Pro","Segoe UI",system-ui,sans-serif;
+  --f-body:"Be Vietnam Pro","Segoe UI",system-ui,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1413; --panel:#161d1b; --stage:#121918; --grid:#202a27;
+    --ink:#e2eae7; --muted:#93a39d; --line:#2b3633;
+    --copper:#e0874f; --electron:#6ea2ff; --current:#ff7b6b; --glow:#ffcc4d; --steel:#a9bac4; --ok:#4cc48a;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f1413; --panel:#161d1b; --stage:#121918; --grid:#202a27;
+  --ink:#e2eae7; --muted:#93a39d; --line:#2b3633;
+  --copper:#e0874f; --electron:#6ea2ff; --current:#ff7b6b; --glow:#ffcc4d; --steel:#a9bac4; --ok:#4cc48a;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55}
+.wrap{max-width:1180px;margin:0 auto;padding-inline:20px;padding-block:28px 48px;display:grid;gap:20px}
+@media (max-width:520px){.wrap{padding-inline:16px}}
+.eyebrow{font-family:var(--f-mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--copper);margin:0 0 6px}
+h1{font-family:var(--f-display);font-weight:800;font-size:clamp(28px,4.4vw,44px);line-height:1.1;letter-spacing:-.02em;margin:0;text-wrap:balance}
+.lede{margin:8px 0 0;color:var(--muted);max-width:62ch}
+.tabs{display:flex;flex-wrap:wrap;column-gap:18px;border-bottom:1px solid var(--line)}
+.tabs button{font:600 15px var(--f-body);color:var(--muted);background:none;border:0;border-bottom:3px solid transparent;padding:10px 2px;cursor:pointer}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--copper)}
+.tabs button:focus-visible,.btn:focus-visible,input:focus-visible{outline:2px solid var(--electron);outline-offset:2px}
+.sim{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:20px;align-items:start}
+@media (max-width:860px){.sim{grid-template-columns:minmax(0,1fr)}}
+.stage{background:var(--stage);border:1px solid var(--line);border-radius:10px;overflow:hidden;position:relative;min-width:0}
+.stage canvas{display:block;width:100%;height:auto}
+#cv-mach{aspect-ratio:800/420}
+#cv-robot{aspect-ratio:5/4;touch-action:none;cursor:crosshair}
+.hint{position:absolute;left:12px;bottom:8px;font:12px var(--f-mono);color:var(--muted);pointer-events:none}
+.controls{display:grid;gap:16px;min-width:0}
+.ctrl{display:grid;grid-template-columns:1fr auto;gap:4px 8px;align-items:baseline}
+.ctrl label{font-weight:500}
+.ctrl output{font:600 14px var(--f-mono);font-variant-numeric:tabular-nums}
+.ctrl input[type=range]{grid-column:1/-1;width:100%;accent-color:var(--copper);margin:0}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.btn{font:600 14px var(--f-body);padding:8px 14px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}
+.btn[aria-pressed="true"]{background:var(--ink);color:var(--panel);border-color:var(--ink)}
+.btn.warn{border-color:var(--current);color:var(--current)}
+.checks{display:grid;gap:6px;border:0;padding:0;margin:0}
+.checks legend,.label{font-size:12px;font-family:var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:0 0 6px;padding:0}
+.checks label{display:flex;gap:8px;align-items:center;cursor:pointer}
+.swatch{width:10px;height:10px;border-radius:50%;display:inline-block;flex:none}
+.meters{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:0}
+.meters div{background:var(--panel);padding:10px 12px;min-width:0}
+.meters dt{font-size:12px;color:var(--muted)}
+.meters dd{margin:2px 0 0;font:600 18px var(--f-mono);font-variant-numeric:tabular-nums}
+.meters dd.state{font:600 15px var(--f-body)}
+.state.bad{color:var(--current)}
+.state.good{color:var(--ok)}
+.small{font-size:13px;color:var(--muted);margin:0}
+.notes{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:24px;padding-top:4px}
+.notes>div{min-width:0}
+.notes h2{font-size:16px;margin:0 0 6px;font-weight:700}
+.notes p{margin:0 0 10px;color:var(--muted);max-width:65ch}
+.formula{font-family:var(--f-mono);font-size:13.5px;line-height:1.7;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px;overflow-x:auto;white-space:pre;margin:0 0 10px}
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Mô phỏng tương tác</p>
+    <h1>Xưởng mô phỏng</h1>
+    <p class="lede">Kéo thanh trượt, bấm công tắc hoặc chạm vào khung vẽ. Số đo và hình ảnh cập nhật ngay theo công thức vật lý bên dưới mỗi mô phỏng.</p>
+  </header>
+
+  <div class="tabs" role="tablist" aria-label="Chọn mô phỏng">
+    <button role="tab" id="tab-mach" aria-controls="p-mach" aria-selected="true">Dòng điện trong mạch</button>
+    <button role="tab" id="tab-robot" aria-controls="p-robot" aria-selected="false">Cánh tay robot 2 khớp</button>
+  </div>
+
+  <section class="sim" id="p-mach" role="tabpanel" aria-labelledby="tab-mach">
+    <div class="stage">
+      <canvas id="cv-mach" aria-label="Sơ đồ mạch nối tiếp gồm nguồn, công tắc K, bóng đèn, biến trở và ampe kế"></canvas>
+      <span class="hint">Chạm vào công tắc K để đóng hoặc mở</span>
+    </div>
+    <div class="controls">
+      <div class="ctrl"><label for="u">Điện áp nguồn U</label><output id="u-out" for="u"></output><input type="range" id="u" min="0" max="24" step="0.5" value="12"></div>
+      <div class="ctrl"><label for="rb">Biến trở R<sub>b</sub></label><output id="rb-out" for="rb"></output><input type="range" id="rb" min="0" max="100" step="1" value="12"></div>
+      <div class="row"><button class="btn" id="sw" aria-pressed="true">Công tắc: đóng</button><button class="btn warn" id="replace" hidden>Thay bóng mới</button></div>
+      <fieldset class="checks"><legend>Hiển thị</legend>
+        <label><input type="checkbox" id="showE" checked><span class="swatch" style="background:var(--electron)"></span>Electron (chấm tròn)</label>
+        <label><input type="checkbox" id="showI" checked><span class="swatch" style="background:var(--current)"></span>Chiều dòng điện quy ước (mũi tên)</label>
+      </fieldset>
+      <dl class="meters">
+        <div><dt>Cường độ I</dt><dd id="m-i"></dd></div>
+        <div><dt>Điện áp trên đèn</dt><dd id="m-ud"></dd></div>
+        <div><dt>Công suất đèn</dt><dd id="m-pd"></dd></div>
+        <div><dt>Đèn</dt><dd class="state" id="m-st"></dd></div>
+      </dl>
+      <p class="small" id="drift"></p>
+    </div>
+    <div class="notes">
+      <div>
+        <h2>Cách tính</h2>
+        <pre class="formula">R_đ = U_đm² / P_đm = 12² / 6 = 24 Ω
+I   = U / (R_b + R_đ)
+U_đ = I · R_đ        P_đ = I² · R_đ</pre>
+        <p>Đèn, biến trở và ampe kế mắc nối tiếp nên cùng một dòng I chạy qua. Tăng R<sub>b</sub> thì I giảm và đèn tối đi. Mô phỏng coi điện trở dây tóc không đổi; dây tóc thật khi nguội có điện trở nhỏ hơn lúc sáng khoảng 10 lần.</p>
+        <p>Trong mô phỏng này, đèn cháy khi công suất vượt 9 W (150% định mức). Thử đặt R<sub>b</sub> = 0 rồi kéo U lên 24 V.</p>
+      </div>
+      <div>
+        <h2>Electron và chiều quy ước</h2>
+        <p>Chấm xanh là electron. Chúng mang điện âm nên đi ra từ cực âm, qua mạch ngoài, về cực dương. Mũi tên đỏ là chiều dòng điện quy ước, đi từ cực dương ra mạch ngoài, ngược với electron.</p>
+        <pre class="formula">v = I / (n · e · S)
+n ≈ 8,5·10²⁸ m⁻³ (đồng)   e = 1,602·10⁻¹⁹ C</pre>
+        <p>Electron trôi rất chậm nhưng đèn vẫn sáng gần như ngay khi đóng khóa, vì điện trường lan dọc dây rất nhanh và mọi electron trong mạch cùng bắt đầu dịch chuyển một lúc.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="sim" id="p-robot" role="tabpanel" aria-labelledby="tab-robot" hidden>
+    <div class="stage">
+      <canvas id="cv-robot" aria-label="Cánh tay robot phẳng hai khớp quay trên hệ trục tọa độ, đơn vị xentimét"></canvas>
+      <span class="hint">Chạm hoặc kéo để chọn điểm đích</span>
+    </div>
+    <div class="controls">
+      <div class="ctrl"><label for="l1">Chiều dài khâu 1, L1</label><output id="l1-out" for="l1"></output><input type="range" id="l1" min="4" max="15" step="0.5" value="12"></div>
+      <div class="ctrl"><label for="l2">Chiều dài khâu 2, L2</label><output id="l2-out" for="l2"></output><input type="range" id="l2" min="4" max="15" step="0.5" value="9"></div>
+      <div class="ctrl"><label for="t1">Góc khớp vai θ1</label><output id="t1-out" for="t1"></output><input type="range" id="t1" min="-180" max="180" step="1" value="40"></div>
+      <div class="ctrl"><label for="t2">Góc khớp khuỷu θ2</label><output id="t2-out" for="t2"></output><input type="range" id="t2" min="-180" max="180" step="1" value="60"></div>
+      <div class="row">
+        <button class="btn" id="orbit" aria-pressed="false">Chạy quỹ đạo tròn</button>
+        <button class="btn" id="elbow" aria-pressed="false">Đổi tư thế khuỷu</button>
+        <button class="btn" id="clear">Xóa vết</button>
+      </div>
+      <fieldset class="checks"><legend>Hiển thị</legend>
+        <label><input type="checkbox" id="showTrail" checked><span class="swatch" style="background:var(--electron)"></span>Vết đầu kẹp</label>
+      </fieldset>
+      <dl class="meters">
+        <div><dt>Đầu kẹp x</dt><dd id="m-x"></dd></div>
+        <div><dt>Đầu kẹp y</dt><dd id="m-y"></dd></div>
+        <div><dt>Cách gốc r</dt><dd id="m-r"></dd></div>
+        <div><dt>Trạng thái</dt><dd class="state" id="m-rs"></dd></div>
+      </dl>
+    </div>
+    <div class="notes">
+      <div>
+        <h2>Động học thuận</h2>
+        <p>Biết hai góc khớp, tính được vị trí đầu kẹp. Kéo thanh θ1, θ2 để thấy.</p>
+        <pre class="formula">x = L1·cos θ1 + L2·cos(θ1 + θ2)
+y = L1·sin θ1 + L2·sin(θ1 + θ2)</pre>
+        <p>Vùng tô màu là vùng làm việc: vành khuyên có bán kính từ |L1 − L2| đến L1 + L2. Điểm ngoài vành này robot không với tới.</p>
+      </div>
+      <div>
+        <h2>Động học ngược</h2>
+        <p>Biết điểm đích (x, y), tìm hai góc khớp. Đây là việc bộ điều khiển robot làm khi bạn chạm vào khung vẽ.</p>
+        <pre class="formula">cos θ2 = (x² + y² − L1² − L2²) / (2·L1·L2)
+θ1 = atan2(y, x) − atan2(L2·sin θ2, L1 + L2·cos θ2)</pre>
+        <p>Mỗi điểm trong vùng làm việc có hai nghiệm θ2 = ±arccos(...), ứng với khuỷu gập lên hoặc gập xuống. Nút tư thế khuỷu chuyển giữa hai nghiệm.</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const MONO = "'JetBrains Mono', ui-monospace, Menlo, monospace";
+  const SANS = "'Be Vietnam Pro', system-ui, sans-serif";
+  const D = Math.PI / 180;
+
+  // Theme tokens read from CSS so the canvas follows light/dark
+  const C = {};
+  const KEYS = ['stage','grid','ink','muted','line','panel','copper','electron','current','glow','steel','ok'];
+  function readTokens() {
+    const cs = getComputedStyle(document.documentElement);
+    KEYS.forEach(k => C[k] = cs.getPropertyValue('--' + k).trim());
+  }
+  readTokens();
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readTokens);
+  new MutationObserver(readTokens).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+  const nf = (x, d) => x.toLocaleString('vi-VN', { minimumFractionDigits: d, maximumFractionDigits: d });
+  function alpha(hex, a) {
+    let h = hex.replace('#', '');
+    if (h.length === 3) h = h.split('').map(c => c + c).join('');
+    const n = parseInt(h, 16);
+    return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`;
+  }
+  function prep(cv) {
+    const d = window.devicePixelRatio || 1;
+    const w = cv.clientWidth, h = cv.clientHeight;
+    const W = Math.round(w * d), H = Math.round(h * d);
+    if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+    return { ctx: cv.getContext('2d'), w, h, d };
+  }
+
+  // ---------- Tabs ----------
+  const TABS = [['mach', 'tab-mach', 'p-mach'], ['robot', 'tab-robot', 'p-robot']];
+  let active = 'mach';
+  function show(name) {
+    active = name;
+    TABS.forEach(([n, t, p]) => {
+      const on = n === name;
+      $(t).setAttribute('aria-selected', on);
+      $(t).tabIndex = on ? 0 : -1;
+      $(p).hidden = !on;
+    });
+    try { history.replaceState(null, '', '#' + name); } catch (e) {}
+  }
+  TABS.forEach(([n, t], i) => {
+    $(t).addEventListener('click', () => show(n));
+    $(t).addEventListener('keydown', e => {
+      if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+      const j = (i + (e.key === 'ArrowRight' ? 1 : TABS.length - 1)) % TABS.length;
+      show(TABS[j][0]); $(TABS[j][1]).focus();
+    });
+  });
+  show(location.hash === '#robot' ? 'robot' : 'mach');
+
+  // ---------- Circuit ----------
+  const RATED_P = 6, BURN_P = 9;
+  const M = { U: 12, Rb: 12, Rd: 24, closed: true, burnt: false, showE: true, showI: true, eOff: 0, iOff: 0, hover: false };
+  // Loop corners in logical units (800 x 420). Traversal order = conventional current direction.
+  const LOOP = [[100, 80], [700, 80], [700, 340], [100, 340]];
+  const SEG = LOOP.map((p, i) => { const q = LOOP[(i + 1) % 4]; return { p, q, len: Math.hypot(q[0] - p[0], q[1] - p[1]) }; });
+  const PER = SEG.reduce((a, s) => a + s.len, 0);
+  function at(s) {
+    s = ((s % PER) + PER) % PER;
+    for (const g of SEG) {
+      if (s <= g.len) {
+        const t = s / g.len;
+        return [g.p[0] + (g.q[0] - g.p[0]) * t, g.p[1] + (g.q[1] - g.p[1]) * t, Math.atan2(g.q[1] - g.p[1], g.q[0] - g.p[0])];
+      }
+      s -= g.len;
+    }
+    return [LOOP[0][0], LOOP[0][1], 0];
+  }
+  const current = () => (M.closed && !M.burnt) ? M.U / (M.Rb + M.Rd) : 0;
+  function checkBurn() { const I = current(); if (I * I * M.Rd > BURN_P) M.burnt = true; }
+
+  function updateCircuitUI() {
+    $('u-out').textContent = nf(M.U, 1) + ' V';
+    $('rb-out').textContent = M.Rb + ' Ω';
+    const I = current(), Ud = I * M.Rd, Pd = I * I * M.Rd;
+    $('m-i').textContent = nf(I, 3) + ' A';
+    $('m-ud').textContent = nf(Ud, 2) + ' V';
+    $('m-pd').textContent = nf(Pd, 2) + ' W';
+    let st = 'Tắt', cls = '';
+    if (M.burnt) { st = 'Đã cháy'; cls = 'bad'; }
+    else if (I > 0 && Pd < 0.3 * RATED_P) st = 'Sáng mờ';
+    else if (I > 0 && Pd <= RATED_P * 1.05) { st = 'Sáng'; cls = 'good'; }
+    else if (I > 0) { st = 'Quá định mức'; cls = 'bad'; }
+    $('m-st').textContent = st; $('m-st').className = 'state ' + cls;
+    $('sw').textContent = 'Công tắc: ' + (M.closed ? 'đóng' : 'mở');
+    $('sw').setAttribute('aria-pressed', M.closed);
+    $('replace').hidden = !M.burnt;
+    if (I > 0) {
+      const v = I / (8.5e28 * 1.602e-19 * 1.5e-6);
+      $('drift').textContent = `Ở dòng ${nf(I, 3)} A, electron trong dây đồng tiết diện 1,5 mm² chỉ trôi khoảng ${nf(v * 1000, 4)} mm/s, mất ${nf(1 / v / 3600, 1)} giờ mới đi hết 1 m dây. Chấm trên hình được cho chạy nhanh hơn thực tế rất nhiều lần để dễ nhìn.`;
+    } else {
+      $('drift').textContent = M.burnt
+        ? 'Dây tóc đã đứt nên mạch hở, không còn dòng điện. Bấm "Thay bóng mới" và giảm U hoặc tăng R_b trước khi thử lại.'
+        : 'Mạch hở hoặc U = 0 nên không có dòng điện. Electron vẫn chuyển động nhiệt hỗn loạn nhưng không trôi theo chiều nào.';
+    }
+  }
+
+  $('u').addEventListener('input', e => { M.U = +e.target.value; checkBurn(); updateCircuitUI(); });
+  $('rb').addEventListener('input', e => { M.Rb = +e.target.value; checkBurn(); updateCircuitUI(); });
+  function toggleSwitch() { M.closed = !M.closed; checkBurn(); updateCircuitUI(); }
+  $('sw').addEventListener('click', toggleSwitch);
+  $('replace').addEventListener('click', () => { M.burnt = false; M.closed = false; updateCircuitUI(); });
+  $('showE').addEventListener('change', e => M.showE = e.target.checked);
+  $('showI').addEventListener('change', e => M.showI = e.target.checked);
+
+  const cvM = $('cv-mach');
+  const logicalM = e => { const r = cvM.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * 800, (e.clientY - r.top) / r.height * 420]; };
+  const onSwitch = ([x, y]) => Math.abs(x - 300) < 60 && Math.abs(y - 75) < 45;
+  cvM.addEventListener('pointerdown', e => { if (onSwitch(logicalM(e))) toggleSwitch(); });
+  cvM.addEventListener('pointermove', e => { M.hover = onSwitch(logicalM(e)); cvM.style.cursor = M.hover ? 'pointer' : 'default'; });
+  cvM.addEventListener('pointerleave', () => { M.hover = false; });
+
+  function drawCircuit(dt) {
+    const { ctx, w, d } = prep(cvM);
+    if (!w) return;
+    const sc = w / 800;
+    ctx.setTransform(d * sc, 0, 0, d * sc, 0, 0);
+    const fs = px => Math.max(px, 11 / sc);
+
+    ctx.fillStyle = C.stage; ctx.fillRect(0, 0, 800, 420);
+    ctx.fillStyle = C.grid;
+    for (let x = 20; x < 800; x += 20) for (let y = 20; y < 420; y += 20) ctx.fillRect(x - 1, y - 1, 2, 2);
+
+    const I = current(), Pd = I * I * M.Rd;
+    const b = M.burnt ? 0 : Math.min(1, Pd / RATED_P);
+    const speed = I * 150 * (reduce ? 0.35 : 1);
+    M.eOff -= speed * dt; M.iOff += speed * dt;
+
+    // lamp glow (behind everything)
+    if (b > 0.01) {
+      const R = 40 + 110 * b;
+      const g = ctx.createRadialGradient(700, 210, 20, 700, 210, R);
+      g.addColorStop(0, alpha(C.glow, 0.55 * b)); g.addColorStop(1, alpha(C.glow, 0));
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(700, 210, R, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // copper wire
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    ctx.strokeStyle = C.copper; ctx.lineWidth = 6;
+    ctx.beginPath(); ctx.moveTo(...LOOP[0]); for (let i = 1; i < 4; i++) ctx.lineTo(...LOOP[i]); ctx.closePath(); ctx.stroke();
+
+    // electrons move against conventional direction
+    if (M.showE) {
+      ctx.fillStyle = C.electron;
+      const N = 60;
+      for (let i = 0; i < N; i++) { const [x, y] = at(M.eOff + i * PER / N); ctx.beginPath(); ctx.arc(x, y, 4.2, 0, Math.PI * 2); ctx.fill(); }
+    }
+    // conventional current arrows, just outside the loop
+    if (M.showI && I > 0) {
+      ctx.fillStyle = C.current;
+      const N = 12;
+      for (let i = 0; i < N; i++) {
+        const [x, y, a] = at(M.iOff + i * PER / N + PER / 24);
+        ctx.save(); ctx.translate(x + Math.sin(a) * 17, y - Math.cos(a) * 17); ctx.rotate(a);
+        ctx.beginPath(); ctx.moveTo(8, 0); ctx.lineTo(-6, -6); ctx.lineTo(-2, 0); ctx.lineTo(-6, 6); ctx.closePath(); ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    const clear = (x, y, ww, hh) => { ctx.fillStyle = C.stage; ctx.fillRect(x, y, ww, hh); };
+    ctx.lineCap = 'butt';
+
+    // battery: long thin plate (+) on top, short thick plate (-) below
+    clear(66, 202, 68, 16);
+    ctx.strokeStyle = C.ink;
+    ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(72, 200); ctx.lineTo(128, 200); ctx.stroke();
+    ctx.lineWidth = 9; ctx.beginPath(); ctx.moveTo(86, 220); ctx.lineTo(114, 220); ctx.stroke();
+    ctx.fillStyle = C.ink; ctx.font = `600 ${fs(16)}px ${MONO}`; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ctx.fillText('+', 64, 192); ctx.fillText('−', 76, 232);
+    ctx.textAlign = 'left';
+    ctx.font = `500 ${fs(14)}px ${SANS}`; ctx.fillStyle = C.muted; ctx.fillText('Nguồn', 146, 196);
+    ctx.font = `600 ${fs(15)}px ${MONO}`; ctx.fillStyle = C.ink; ctx.fillText('U = ' + nf(M.U, 1) + ' V', 146, 220);
+
+    // switch K
+    clear(262, 72, 76, 16);
+    if (M.hover) { ctx.fillStyle = alpha(C.electron, 0.12); ctx.beginPath(); ctx.arc(300, 72, 50, 0, Math.PI * 2); ctx.fill(); }
+    const ang = M.closed ? 0 : -32 * D;
+    ctx.strokeStyle = C.ink; ctx.lineWidth = 5; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(262, 80); ctx.lineTo(262 + 76 * Math.cos(ang), 80 + 76 * Math.sin(ang)); ctx.stroke();
+    ctx.lineWidth = 3; ctx.fillStyle = C.panel;
+    [[262, 80], [338, 80]].forEach(([x, y]) => { ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); });
+    ctx.fillStyle = C.ink; ctx.font = `700 ${fs(16)}px ${MONO}`; ctx.textAlign = 'center';
+    ctx.fillText('K', 300, M.closed ? 52 : 30);
+
+    // lamp (circle with X)
+    ctx.fillStyle = C.panel; ctx.beginPath(); ctx.arc(700, 210, 30, 0, Math.PI * 2); ctx.fill();
+    if (b > 0.01) { ctx.fillStyle = alpha(C.glow, 0.85 * b); ctx.fill(); }
+    ctx.strokeStyle = C.ink; ctx.lineWidth = 3; ctx.stroke();
+    ctx.strokeStyle = M.burnt ? C.muted : C.ink; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+    const k = 21, gap = M.burnt ? 6 : 0;
+    ctx.beginPath();
+    ctx.moveTo(700 - k, 210 - k); ctx.lineTo(700 - gap, 210 - gap); ctx.moveTo(700 + gap, 210 + gap); ctx.lineTo(700 + k, 210 + k);
+    ctx.moveTo(700 + k, 210 - k); ctx.lineTo(700 + gap, 210 - gap); ctx.moveTo(700 - gap, 210 + gap); ctx.lineTo(700 - k, 210 + k);
+    ctx.stroke();
+    ctx.textAlign = 'right'; ctx.font = `500 ${fs(14)}px ${SANS}`; ctx.fillStyle = C.muted;
+    ctx.fillText('Đèn 12 V, 6 W', 652, 196);
+    ctx.font = `600 ${fs(15)}px ${MONO}`; ctx.fillStyle = M.burnt ? C.current : C.ink;
+    ctx.fillText(M.burnt ? 'đứt dây tóc' : 'P = ' + nf(Pd, 2) + ' W', 652, 220);
+
+    // rheostat (IEC rectangle with arrow)
+    clear(262, 327, 136, 26);
+    ctx.lineCap = 'butt'; ctx.fillStyle = C.panel; ctx.strokeStyle = C.ink; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.rect(272, 328, 116, 24); ctx.fill(); ctx.stroke();
+    ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(292, 366); ctx.lineTo(366, 316); ctx.stroke();
+    ctx.fillStyle = C.ink; ctx.save(); ctx.translate(370, 313); ctx.rotate(Math.atan2(-50, 74));
+    ctx.beginPath(); ctx.moveTo(4, 0); ctx.lineTo(-9, -6); ctx.lineTo(-9, 6); ctx.closePath(); ctx.fill(); ctx.restore();
+    ctx.textAlign = 'center'; ctx.font = `600 ${fs(15)}px ${MONO}`; ctx.fillStyle = C.ink;
+    ctx.fillText('R_b = ' + M.Rb + ' Ω', 330, 392);
+
+    // ammeter
+    ctx.fillStyle = C.panel; ctx.strokeStyle = C.ink; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(560, 340, 22, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = C.ink; ctx.font = `700 ${fs(18)}px ${MONO}`; ctx.fillText('A', 560, 341);
+    ctx.font = `600 ${fs(15)}px ${MONO}`; ctx.fillText('I = ' + nf(I, 3) + ' A', 560, 392);
+  }
+
+  // ---------- Robot arm ----------
+  const R = { L1: 12, L2: 9, t1: 40 * D, t2: 60 * D, tgt: null, reach: true, up: false, trail: [], showTrail: true, orbit: !reduce, phase: 0 };
+  const wrap = a => Math.atan2(Math.sin(a), Math.cos(a));
+  function fk() {
+    const x1 = R.L1 * Math.cos(R.t1), y1 = R.L1 * Math.sin(R.t1);
+    return { x1, y1, x2: x1 + R.L2 * Math.cos(R.t1 + R.t2), y2: y1 + R.L2 * Math.sin(R.t1 + R.t2) };
+  }
+  function ik(x, y, L1, L2, up) {
+    let r = Math.hypot(x, y), reach = true;
+    const rmax = L1 + L2 - 1e-6, rmin = Math.abs(L1 - L2) + 1e-6;
+    if (r > rmax) { x *= rmax / r; y *= rmax / r; r = rmax; reach = false; }
+    else if (r < rmin) { if (r < 1e-9) { x = rmin; y = 0; } else { x *= rmin / r; y *= rmin / r; } r = rmin; reach = false; }
+    const c2 = Math.max(-1, Math.min(1, (r * r - L1 * L1 - L2 * L2) / (2 * L1 * L2)));
+    const t2 = (up ? -1 : 1) * Math.acos(c2);
+    const t1 = Math.atan2(y, x) - Math.atan2(L2 * Math.sin(t2), L1 + L2 * Math.cos(t2));
+    return { t1: wrap(t1), t2, reach };
+  }
+  const view = (w, h) => ({ s: Math.min(w, h) / 2 / 32, cx: w / 2, cy: h / 2 });
+
+  function stepRobot(dt) {
+    if (R.orbit) {
+      R.phase += dt * 0.9;
+      const S = R.L1 + R.L2, cx = 0.55 * S * Math.cos(35 * D), cy = 0.55 * S * Math.sin(35 * D);
+      R.tgt = [cx + 0.28 * S * Math.cos(R.phase), cy + 0.28 * S * Math.sin(R.phase)];
+    }
+    if (R.tgt) {
+      const g = ik(R.tgt[0], R.tgt[1], R.L1, R.L2, R.up);
+      R.reach = g.reach;
+      const k = reduce ? 1 : Math.min(1, dt * (R.orbit ? 14 : 7));
+      R.t1 = wrap(R.t1 + wrap(g.t1 - R.t1) * k);
+      R.t2 = R.t2 + (g.t2 - R.t2) * k;
+    }
+    const p = fk(), last = R.trail[R.trail.length - 1];
+    if (!last || Math.hypot(p.x2 - last[0], p.y2 - last[1]) > 0.15) {
+      R.trail.push([p.x2, p.y2]);
+      if (R.trail.length > 900) R.trail.shift();
+    }
+  }
+
+  function updateRobotUI() {
+    const p = fk();
+    $('l1-out').textContent = nf(R.L1, 1) + ' cm';
+    $('l2-out').textContent = nf(R.L2, 1) + ' cm';
+    const a1 = R.t1 / D, a2 = R.t2 / D;
+    $('t1-out').textContent = nf(a1, 1) + '°';
+    $('t2-out').textContent = nf(a2, 1) + '°';
+    if (document.activeElement !== $('t1')) $('t1').value = Math.round(a1);
+    if (document.activeElement !== $('t2')) $('t2').value = Math.round(a2);
+    $('m-x').textContent = nf(p.x2, 2) + ' cm';
+    $('m-y').textContent = nf(p.y2, 2) + ' cm';
+    $('m-r').textContent = nf(Math.hypot(p.x2, p.y2), 2) + ' cm';
+    let st = 'Điều khiển góc', cls = '';
+    if (R.tgt && !R.reach) { st = 'Đích ngoài tầm với'; cls = 'bad'; }
+    else if (R.tgt && Math.hypot(p.x2 - R.tgt[0], p.y2 - R.tgt[1]) < 0.1) { st = R.orbit ? 'Bám quỹ đạo' : 'Đã tới đích'; cls = 'good'; }
+    else if (R.tgt) st = 'Đang di chuyển';
+    const el = $('m-rs'); if (el.textContent !== st) { el.textContent = st; el.className = 'state ' + cls; }
+    $('orbit').setAttribute('aria-pressed', R.orbit);
+    $('elbow').textContent = R.up ? 'Khuỷu đang gập lên' : 'Khuỷu đang gập xuống';
+  }
+
+  function drawRobot() {
+    const { ctx, w, h, d } = prep(cvR);
+    if (!w) return;
+    ctx.setTransform(d, 0, 0, d, 0, 0);
+    const { s, cx, cy } = view(w, h);
+    const X = x => cx + x * s, Y = y => cy - y * s;
+
+    ctx.fillStyle = C.stage; ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = C.grid; ctx.lineWidth = 1; ctx.beginPath();
+    for (let k = -40; k <= 40; k += 5) { ctx.moveTo(X(k), 0); ctx.lineTo(X(k), h); ctx.moveTo(0, Y(k)); ctx.lineTo(w, Y(k)); }
+    ctx.stroke();
+    ctx.strokeStyle = C.line; ctx.lineWidth = 1.5; ctx.beginPath();
+    ctx.moveTo(0, cy); ctx.lineTo(w, cy); ctx.moveTo(cx, 0); ctx.lineTo(cx, h); ctx.stroke();
+    ctx.fillStyle = C.muted; ctx.font = `11px ${MONO}`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    for (let k = -30; k <= 30; k += 10) if (k) ctx.fillText(k, X(k), cy + 5);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    for (let k = -30; k <= 30; k += 10) if (k) ctx.fillText(k, cx + 6, Y(k));
+    ctx.textAlign = 'right'; ctx.fillText('x (cm)', w - 8, cy - 12);
+    ctx.textAlign = 'left'; ctx.fillText('y (cm)', cx + 8, 14);
+
+    // workspace annulus
+    const rO = (R.L1 + R.L2) * s, rI = Math.abs(R.L1 - R.L2) * s;
+    ctx.fillStyle = alpha(C.copper, 0.09);
+    ctx.beginPath(); ctx.arc(cx, cy, rO, 0, Math.PI * 2); ctx.arc(cx, cy, rI, 0, Math.PI * 2, true); ctx.fill('evenodd');
+    ctx.setLineDash([5, 5]); ctx.strokeStyle = alpha(C.copper, 0.6); ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.arc(cx, cy, rO, 0, Math.PI * 2); ctx.stroke();
+    if (rI > 1) { ctx.beginPath(); ctx.arc(cx, cy, rI, 0, Math.PI * 2); ctx.stroke(); }
+    ctx.setLineDash([]);
+
+    if (R.showTrail && R.trail.length > 1) {
+      ctx.strokeStyle = alpha(C.electron, 0.75); ctx.lineWidth = 2; ctx.lineJoin = 'round';
+      ctx.beginPath(); R.trail.forEach(([x, y], i) => i ? ctx.lineTo(X(x), Y(y)) : ctx.moveTo(X(x), Y(y))); ctx.stroke();
+    }
+
+    if (R.tgt) {
+      const tx = X(R.tgt[0]), ty = Y(R.tgt[1]);
+      ctx.strokeStyle = R.reach ? C.ok : C.current; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(tx, ty, 9, 0, Math.PI * 2);
+      ctx.moveTo(tx - 15, ty); ctx.lineTo(tx + 15, ty); ctx.moveTo(tx, ty - 15); ctx.lineTo(tx, ty + 15); ctx.stroke();
+    }
+
+    const p = fk();
+    const ex = X(p.x1), ey = Y(p.y1), hx = X(p.x2), hy = Y(p.y2);
+
+    // base and ground hatch
+    ctx.strokeStyle = C.muted; ctx.lineWidth = 1.5; ctx.beginPath();
+    ctx.moveTo(cx - 34, cy + 18); ctx.lineTo(cx + 34, cy + 18);
+    for (let i = -32; i <= 28; i += 8) { ctx.moveTo(cx + i, cy + 18); ctx.lineTo(cx + i - 7, cy + 26); }
+    ctx.stroke();
+    ctx.fillStyle = C.steel; ctx.beginPath();
+    ctx.moveTo(cx - 24, cy + 18); ctx.lineTo(cx + 24, cy + 18); ctx.lineTo(cx + 12, cy); ctx.lineTo(cx - 12, cy); ctx.closePath(); ctx.fill();
+
+    // angle arcs
+    ctx.strokeStyle = C.current; ctx.fillStyle = C.current; ctx.lineWidth = 1.8; ctx.font = `600 13px ${MONO}`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.beginPath(); ctx.arc(cx, cy, 34, 0, -R.t1, R.t1 > 0); ctx.stroke();
+    ctx.fillText('θ1', cx + 50 * Math.cos(R.t1 / 2), cy - 50 * Math.sin(R.t1 / 2));
+    ctx.setLineDash([4, 4]); ctx.strokeStyle = C.muted; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(ex + 44 * Math.cos(R.t1), ey - 44 * Math.sin(R.t1)); ctx.stroke(); ctx.setLineDash([]);
+    ctx.strokeStyle = C.current; ctx.lineWidth = 1.8;
+    ctx.beginPath(); ctx.arc(ex, ey, 28, -R.t1, -(R.t1 + R.t2), R.t2 > 0); ctx.stroke();
+    const mid = R.t1 + R.t2 / 2;
+    ctx.fillText('θ2', ex + 44 * Math.cos(mid), ey - 44 * Math.sin(mid));
+
+    // links
+    const lw1 = Math.max(8, Math.min(18, 1.5 * s)), lw2 = lw1 * 0.78;
+    ctx.lineCap = 'round'; ctx.strokeStyle = C.steel;
+    ctx.lineWidth = lw1; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(ex, ey); ctx.stroke();
+    ctx.lineWidth = lw2; ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(hx, hy); ctx.stroke();
+
+    // gripper
+    const a = R.t1 + R.t2, ux = Math.cos(a), uy = -Math.sin(a), nx = -uy, ny = ux;
+    ctx.strokeStyle = C.steel; ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.moveTo(hx + nx * 8, hy + ny * 8); ctx.lineTo(hx - nx * 8, hy - ny * 8);
+    ctx.moveTo(hx + nx * 8, hy + ny * 8); ctx.lineTo(hx + nx * 6 + ux * 13, hy + ny * 6 + uy * 13);
+    ctx.moveTo(hx - nx * 8, hy - ny * 8); ctx.lineTo(hx - nx * 6 + ux * 13, hy - ny * 6 + uy * 13);
+    ctx.stroke();
+
+    // joints
+    ctx.fillStyle = C.panel; ctx.strokeStyle = C.copper; ctx.lineWidth = 3;
+    [[cx, cy, lw1 * 0.6], [ex, ey, lw1 * 0.55]].forEach(([x, y, r]) => { ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); });
+    ctx.fillStyle = C.current; ctx.beginPath(); ctx.arc(hx, hy, 3.5, 0, Math.PI * 2); ctx.fill();
+
+    // link labels
+    ctx.fillStyle = C.muted; ctx.font = `600 12px ${MONO}`;
+    const lab = (x0, y0, x1, y1, t) => {
+      const mx = (x0 + x1) / 2, my = (y0 + y1) / 2, L = Math.hypot(x1 - x0, y1 - y0) || 1;
+      ctx.fillText(t, mx - (y1 - y0) / L * 20, my + (x1 - x0) / L * 20);
+    };
+    lab(cx, cy, ex, ey, 'L1'); lab(ex, ey, hx, hy, 'L2');
+  }
+
+  const cvR = $('cv-robot');
+  function toWorld(e) {
+    const r = cvR.getBoundingClientRect(), v = view(r.width, r.height);
+    return [(e.clientX - r.left - v.cx) / v.s, -(e.clientY - r.top - v.cy) / v.s];
+  }
+  let dragging = false;
+  cvR.addEventListener('pointerdown', e => { dragging = true; cvR.setPointerCapture(e.pointerId); R.orbit = false; R.tgt = toWorld(e); });
+  cvR.addEventListener('pointermove', e => { if (dragging) R.tgt = toWorld(e); });
+  ['pointerup', 'pointercancel'].forEach(t => cvR.addEventListener(t, () => { dragging = false; }));
+
+  $('l1').addEventListener('input', e => { R.L1 = +e.target.value; R.trail = []; });
+  $('l2').addEventListener('input', e => { R.L2 = +e.target.value; R.trail = []; });
+  $('t1').addEventListener('input', e => { R.orbit = false; R.tgt = null; R.t1 = +e.target.value * D; });
+  $('t2').addEventListener('input', e => { R.orbit = false; R.tgt = null; R.t2 = +e.target.value * D; });
+  $('orbit').addEventListener('click', () => { R.orbit = !R.orbit; if (R.orbit) R.trail = []; else R.tgt = null; });
+  $('elbow').addEventListener('click', () => {
+    R.up = !R.up;
+    if (!R.tgt) { const p = fk(); R.tgt = [p.x2, p.y2]; }
+  });
+  $('clear').addEventListener('click', () => { R.trail = []; });
+  $('showTrail').addEventListener('change', e => { R.showTrail = e.target.checked; });
+
+  // ---------- Loop ----------
+  updateCircuitUI();
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    if (active === 'mach') drawCircuit(dt);
+    else { stepRobot(dt); drawRobot(); updateRobotUI(); }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
